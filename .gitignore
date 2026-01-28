@@ -12,9 +12,10 @@ __pycache__
 data
 tmp
 etc/
-
+MNIST
 lightning_logs/
 
 dump.rdb
 
 *.rdb
+.env

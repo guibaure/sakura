@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# Change to the desired working directory
+cd /workspace
+
+export SAKURA_ROLE=1
+cd /tmp
+redis-server

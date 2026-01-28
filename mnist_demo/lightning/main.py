@@ -51,7 +51,7 @@ class MNISTModel(L.LightningModule):
 
 
 if __name__ == "__main__":
-    PATH_DATASETS = os.environ.get("PATH_DATASETS", ".")
+    PATH_DATASETS = os.environ.get("PATH_DATASETS", "/tmp")
     BATCH_SIZE = 2000 if torch.cuda.is_available() else 64
     # Init our model
     mnist_model = MNISTModel()
