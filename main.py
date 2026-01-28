@@ -1,4 +1,7 @@
+import argparse
 import os
+import time
+
 import lightning as L
 import torch
 from torch import nn
@@ -6,8 +9,7 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import MNIST
-import argparse
-from sakura.lightning import SakuraTrainer
+
 
 
 class MNISTModel(L.LightningModule):
@@ -50,29 +52,78 @@ class MNISTModel(L.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=0.02)
 
 
-if __name__ == "__main__":
-    PATH_DATASETS = os.environ.get("PATH_DATASETS", ".")
-    BATCH_SIZE = 2000 if torch.cuda.is_available() else 64
-    # Init our model
-    mnist_model = MNISTModel()
-
-    # Init DataLoader from MNIST Dataset
-    train_ds = MNIST(
-        PATH_DATASETS, train=True, download=True, transform=transforms.ToTensor()
-    )
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE)
-
-    # Init DataLoader from MNIST Dataset
-    val_ds = MNIST(
-        PATH_DATASETS, train=False, download=True, transform=transforms.ToTensor()
-    )
-    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE)
-
-    trainer = SakuraTrainer(
-        accelerator="auto",
-        max_epochs=10,
+def make_loaders(path, batch_size):
+    train_ds = MNIST(path, train=True, download=True, transform=transforms.ToTensor())
+    val_ds = MNIST(path, train=False, download=True, transform=transforms.ToTensor())
+    return (
+        DataLoader(train_ds, batch_size=batch_size),
+        DataLoader(val_ds, batch_size=batch_size),
     )
 
+
+def run_baseline(train_loader, val_loader, epochs):
+    model = MNISTModel()
+    trainer = L.Trainer(
+        accelerator="auto", max_epochs=epochs, default_root_dir="/tmp"
+    )
+    t0 = time.perf_counter()
+    trainer.fit(model, train_loader, val_loader)
+    return time.perf_counter() - t0
+
+
+def run_sakura(train_loader, val_loader, epochs):
+    from sakura.lightning import SakuraTrainer
+
+    model = MNISTModel()
+    trainer = SakuraTrainer(accelerator="auto", max_epochs=epochs)
+    t0 = time.perf_counter()
     trainer.run(
-        mnist_model, train_loader, val_loader, model_path="models/best_model.pth"
+        model,
+        train_loader,
+        val_loader,
+        model_path="models/best_model.pth",
+        default_root_dir="/tmp",
     )
+    return time.perf_counter() - t0
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Benchmark Sakura vs Lightning")
+    parser.add_argument(
+        "--mode",
+        choices=["baseline", "sakura", "both"],
+        default="both",
+        help="Which trainer(s) to benchmark (default: both)",
+    )
+    parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--batch-size", type=int, default=None)
+    parser.add_argument("--data-dir", default=os.environ.get("PATH_DATASETS", "/tmp/datasets"))
+    args = parser.parse_args()
+
+    batch_size = args.batch_size or (2000 if torch.cuda.is_available() else 64)
+    train_loader, val_loader = make_loaders(args.data_dir, batch_size)
+
+    results = {}
+
+    if args.mode in ("baseline", "both"):
+        print(f"--- Baseline Lightning Trainer ({args.epochs} epochs) ---")
+        results["baseline"] = run_baseline(train_loader, val_loader, args.epochs)
+        print(f"Baseline: {results['baseline']:.2f}s")
+
+    if args.mode in ("sakura", "both"):
+        print(f"--- Sakura Trainer ({args.epochs} epochs) ---")
+        results["sakura"] = run_sakura(train_loader, val_loader, args.epochs)
+        print(f"Sakura:   {results['sakura']:.2f}s")
+
+    if "baseline" in results and "sakura" in results:
+        diff = results["baseline"] - results["sakura"]
+        pct = (diff / results["baseline"]) * 100
+        faster = "sakura" if diff > 0 else "baseline"
+        print(f"\n{'='*40}")
+        print(f"Baseline: {results['baseline']:.2f}s")
+        print(f"Sakura:   {results['sakura']:.2f}s")
+        print(f"{faster} is {abs(pct):.1f}% faster ({abs(diff):.2f}s)")
+
+
+if __name__ == "__main__":
+    main()
