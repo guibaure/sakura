@@ -43,13 +43,13 @@ classifiers = [
 huggingface = [
     "transformers>=4.40.0",
     "datasets>=2.14.0",
+    "accelerate>=1.1.0",
 ]
 tensorflow = [
     "tensorflow>=2.15.0",
 ]
 bench = [
     "sakura-ml[huggingface]",
-    "accelerate>=0.25.0",
 ]
 
 [dependency-groups]
