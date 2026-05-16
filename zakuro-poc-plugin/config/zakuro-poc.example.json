@@ -1,0 +1,24 @@
+{
+  "artifact_root": "./zakuro-artifacts",
+  "default_backend": "docker",
+  "default_image": "python:3.11-slim",
+  "allow_network": false,
+  "allow_shell": false,
+  "allow_latest_images": false,
+  "max_timeout_seconds": 3600,
+  "max_memory_mb": 4096,
+  "max_cpu_count": 4.0,
+  "docker": {
+    "remove_container": true,
+    "read_only_root": false,
+    "network_mode": "none",
+    "pids_limit": 256,
+    "user": "65532:65532"
+  },
+  "zakuro": {
+    "executable": "zc",
+    "execute_args": ["execute"],
+    "plan_arg": "--plan",
+    "json_arg": "--json"
+  }
+}
